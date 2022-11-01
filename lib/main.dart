@@ -77,7 +77,14 @@ class _DemoHomePageState extends State<DemoHomePage> {
                       Navigator.push(
                         context,
                         PageRouteBuilder(
+                          transitionDuration: const Duration(
+                            milliseconds: 500,
+                          ),
+                          reverseTransitionDuration: const Duration(
+                            milliseconds: 500,
+                          ),
                           pageBuilder: (context, a1, a2) => DismissiblePage(
+                            // backgroundColor: Colors.transparent,
                             onDragUpdate: (value) {},
                             onDragEnd: () {},
                             minRadius: 0,
@@ -105,19 +112,6 @@ class _DemoHomePageState extends State<DemoHomePage> {
                           data[index],
                           scale: 0.1,
                           fit: BoxFit.contain,
-                          frameBuilder: (context, child, frame, syncLoad) {
-                            if (frame == null) {
-                              return const Center(
-                                child: BlurHash(
-                                  hash:
-                                      'lbGut5IoM{~pM|Rj%OoJoJnjxskBVsj?WCxtV[kC',
-                                  decodingHeight: 6,
-                                  decodingWidth: 3,
-                                ),
-                              );
-                            }
-                            return child;
-                          },
                         ),
                       ),
                     ),
@@ -176,16 +170,6 @@ class _TestAppState extends State<TestApp> {
           widget.contentBytes[frameIndex % widget.contentBytes.length],
           fit: BoxFit.cover,
           filterQuality: FilterQuality.none,
-          frameBuilder: (context, child, frame, syncLoad) {
-            if (frame == null) {
-              return const BlurHash(
-                hash: 'lbGut5IoM{~pM|Rj%OoJoJnjxskBVsj?WCxtV[kC',
-                decodingHeight: 6,
-                decodingWidth: 3,
-              );
-            }
-            return child;
-          },
         );
       },
       foregroundContentBuilder: (
@@ -205,6 +189,7 @@ class _TestAppState extends State<TestApp> {
       frameLengthBuilder: (_) => 10,
       groupsCount: 12,
       controller: controller,
+      heroBuilder: (groupIndex) => 'image-$groupIndex',
     );
   }
 
@@ -322,9 +307,11 @@ class StoriesWidget extends StatefulWidget {
     this.onStateRestore,
     this.foregroundContentBuilder = _defaultContentBuilder,
     required this.controller,
+    required this.heroBuilder,
   });
 
   final int groupsCount;
+  final StoryHeroBuilder heroBuilder;
   final FrameLengthBuilder frameLengthBuilder;
   final StoryContentBuilder contentBuilder;
   final StoryContentBuilder foregroundContentBuilder;
@@ -363,7 +350,7 @@ class _StoriesWidgetState extends State<StoriesWidget> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       body: Center(
         child: PageView.builder(
           controller: _pageController,
@@ -381,7 +368,7 @@ class _StoriesWidgetState extends State<StoriesWidget> {
                 transform.rotateY(-rotationY! * (pi / 180.0));
 
                 return Hero(
-                  tag: 'image-$index',
+                  tag: widget.heroBuilder(index),
                   child: Transform(
                     alignment: isLeaving
                         ? Alignment.centerRight
@@ -420,6 +407,8 @@ typedef StoryStateSaveCallback = void Function(
 );
 
 typedef StoryStateRestoreCallback = int? Function(int groupIndex);
+
+typedef StoryHeroBuilder = String Function(int groupIndex);
 
 typedef FrameLengthBuilder = int Function(int groupIndex);
 
@@ -535,6 +524,7 @@ class _StoryFrameState extends State<StoryFrame>
 
   void _nextFrame() {
     if (_activeIndexNotifier.value < widget.framesLength - 1) {
+      widget.onStateSave?.call(widget.groupIndex, _activeIndexNotifier.value);
       _activeIndexNotifier.value++;
     }
   }
@@ -549,6 +539,7 @@ class _StoryFrameState extends State<StoryFrame>
 
   void _previousFrame() {
     if (_activeIndexNotifier.value > 0) {
+      widget.onStateSave?.call(widget.groupIndex, _activeIndexNotifier.value);
       _activeIndexNotifier.value--;
     }
   }
