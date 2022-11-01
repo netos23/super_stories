@@ -37,6 +37,9 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
   dashed_circle: ^0.0.2
+  http: ^0.13.5
+  dismissible_page: ^0.7.3
+  flutter_blurhash: ^0.7.0
 
 dev_dependencies:
   flutter_test:

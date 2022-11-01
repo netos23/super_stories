@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
+import 'package:dismissible_page/dismissible_page.dart';
+import 'package:flutter_blurhash/flutter_blurhash.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -18,24 +22,139 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const TestApp(),
+      home: const DemoHomePage(),
+    );
+  }
+}
+
+class DemoHomePage extends StatefulWidget {
+  const DemoHomePage({Key? key}) : super(key: key);
+
+  @override
+  State<DemoHomePage> createState() => _DemoHomePageState();
+}
+
+class _DemoHomePageState extends State<DemoHomePage> {
+  final _images = [
+    'https://storage.yandexcloud.net/ash/Group_490.webp',
+    'https://storage.yandexcloud.net/ash/Group_491.webp',
+    'https://storage.yandexcloud.net/ash/Group_493.webp',
+    'https://storage.yandexcloud.net/ash/Group_492.webp',
+  ];
+
+  Future<Uint8List> _loadImage(String url) async {
+    final response = await http.get(Uri.parse(url));
+    final body = response.bodyBytes;
+    return body;
+  }
+
+  Future<List<Uint8List>> _loadImages() async {
+    return await Stream.fromFutures(_images.map(_loadImage)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: FutureBuilder(
+        future: _loadImages(),
+        builder: (context, snapshot) {
+          final data = snapshot.data;
+          if (data == null) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+          return Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              height: 200,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: data.length,
+                itemBuilder: (context, index) {
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder: (context, a1, a2) => DismissiblePage(
+                            onDragUpdate: (value) {},
+                            onDragEnd: () {},
+                            minRadius: 0,
+                            minScale: .5,
+                            direction: DismissiblePageDismissDirection.down,
+                            onDismissed: () {
+                              Navigator.of(context).pop();
+                            },
+                            child: TestApp(
+                              contentBytes: data,
+                              initialPage: index,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                      ),
+                      clipBehavior: Clip.hardEdge,
+                      child: Hero(
+                        tag: 'image-$index',
+                        child: Image.memory(
+                          data[index],
+                          scale: 0.1,
+                          fit: BoxFit.contain,
+                          frameBuilder: (context, child, frame, syncLoad) {
+                            if (frame == null) {
+                              return const Center(
+                                child: BlurHash(
+                                  hash:
+                                      'lbGut5IoM{~pM|Rj%OoJoJnjxskBVsj?WCxtV[kC',
+                                  decodingHeight: 6,
+                                  decodingWidth: 3,
+                                ),
+                              );
+                            }
+                            return child;
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
 class TestApp extends StatefulWidget {
-  const TestApp({Key? key}) : super(key: key);
+  const TestApp({
+    Key? key,
+    required this.contentBytes,
+    this.initialPage = 0,
+  }) : super(key: key);
+
+  final List<Uint8List> contentBytes;
+  final int initialPage;
 
   @override
   State<TestApp> createState() => _TestAppState();
 }
 
 class _TestAppState extends State<TestApp> {
-  final controller = StoriesController();
+  late final StoriesController controller;
 
   @override
   void initState() {
     super.initState();
+    controller = StoriesController(
+      initialPage: widget.initialPage,
+    );
   }
 
   @override
@@ -53,15 +172,33 @@ class _TestAppState extends State<TestApp> {
         groupIndex,
         frameIndex,
       ) {
-        return Container(
-          color: groupIndex.isOdd ? Colors.green : Colors.indigo,
-          child: Center(
-            child: Text(
-              frameIndex.toString(),
-              style: Theme.of(context).textTheme.headline1?.copyWith(
-                    color: Colors.white,
-                  ),
-            ),
+        return Image.memory(
+          widget.contentBytes[frameIndex % widget.contentBytes.length],
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.none,
+          frameBuilder: (context, child, frame, syncLoad) {
+            if (frame == null) {
+              return const BlurHash(
+                hash: 'lbGut5IoM{~pM|Rj%OoJoJnjxskBVsj?WCxtV[kC',
+                decodingHeight: 6,
+                decodingWidth: 3,
+              );
+            }
+            return child;
+          },
+        );
+      },
+      foregroundContentBuilder: (
+        context,
+        groupIndex,
+        frameIndex,
+      ) {
+        return Center(
+          child: Text(
+            frameIndex.toString(),
+            style: Theme.of(context).textTheme.headline1?.copyWith(
+                  color: Colors.white,
+                ),
           ),
         );
       },
@@ -73,6 +210,7 @@ class _TestAppState extends State<TestApp> {
 
   @override
   void dispose() {
+    controller.dispose();
     super.dispose();
   }
 }
@@ -90,8 +228,9 @@ class StoriesController extends ChangeNotifier
     StoriesStatus.play,
   );
 
-  final pageController = PageController();
+  late final PageController pageController;
   final Duration nextGroupDuration;
+  final int initialPage;
   final Duration previousGroupDuration;
   int _groupIndex = 0;
 
@@ -99,10 +238,12 @@ class StoriesController extends ChangeNotifier
     this.nextGroupDuration = const Duration(
       milliseconds: 300,
     ),
+    this.initialPage = 0,
     this.previousGroupDuration = const Duration(
       milliseconds: 300,
     ),
   }) {
+    pageController = PageController(initialPage: initialPage);
     pageController.addListener(_listenGroupScroll);
     storyStatusNotifier.addListener(_listenStatus);
   }
@@ -210,10 +351,13 @@ class _StoriesWidgetState extends State<StoriesWidget> {
   void initState() {
     super.initState();
     _pageController.addListener(_listenCurrentValue);
+    _currentPageValueNotifier.value = _initialPage;
   }
 
+  double get _initialPage => widget.controller.initialPage.toDouble();
+
   void _listenCurrentValue() {
-    _currentPageValueNotifier.value = _pageController.page ?? 0;
+    _currentPageValueNotifier.value = _pageController.page ?? _initialPage;
   }
 
   @override
@@ -228,7 +372,6 @@ class _StoriesWidgetState extends State<StoriesWidget> {
             return ValueListenableBuilder(
               valueListenable: _currentPageValueNotifier,
               builder: (context, currentPageValue, _) {
-                debugPrint(currentPageValue.toString());
                 final isLeaving = (index - currentPageValue) <= 0;
                 final t = (index - currentPageValue);
                 final rotationY = lerpDouble(0, 30, t);
@@ -237,18 +380,22 @@ class _StoriesWidgetState extends State<StoriesWidget> {
                 transform.setEntry(3, 2, 0.003);
                 transform.rotateY(-rotationY! * (pi / 180.0));
 
-                return Transform(
-                  alignment:
-                      isLeaving ? Alignment.centerRight : Alignment.centerLeft,
-                  transform: transform,
-                  child: StoryFrame(
-                    controller: widget.controller,
-                    builder: widget.contentBuilder,
-                    foregroundBuilder: widget.foregroundContentBuilder,
-                    groupIndex: index,
-                    framesLength: widget.frameLengthBuilder(index),
-                    initialIndex: widget.onStateRestore?.call(index) ?? 0,
-                    onStateSave: widget.onStateSave,
+                return Hero(
+                  tag: 'image-$index',
+                  child: Transform(
+                    alignment: isLeaving
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    transform: transform,
+                    child: StoryFrame(
+                      controller: widget.controller,
+                      builder: widget.contentBuilder,
+                      foregroundBuilder: widget.foregroundContentBuilder,
+                      groupIndex: index,
+                      framesLength: widget.frameLengthBuilder(index),
+                      initialIndex: widget.onStateRestore?.call(index) ?? 0,
+                      onStateSave: widget.onStateSave,
+                    ),
                   ),
                 );
               },
@@ -414,8 +561,22 @@ class _StoryFrameState extends State<StoryFrame>
         return Stack(
           fit: StackFit.expand,
           children: [
+            IndexedStack(
+              index: frameIndex,
+              sizing: StackFit.expand,
+              children: [
+                for (var i = 0; i < widget.framesLength; i++)
+                  Positioned.fill(
+                    child: widget.builder(
+                      context,
+                      widget.groupIndex,
+                      i,
+                    ),
+                  ),
+              ],
+            ),
             Positioned.fill(
-              child: widget.builder(
+              child: widget.foregroundBuilder(
                 context,
                 widget.groupIndex,
                 frameIndex,
@@ -438,13 +599,6 @@ class _StoryFrameState extends State<StoryFrame>
                 onPause: _onPause,
                 onResume: _onResume,
                 onPreviousFrame: _previousFrame,
-              ),
-            ),
-            Positioned.fill(
-              child: widget.foregroundBuilder(
-                context,
-                widget.groupIndex,
-                frameIndex,
               ),
             ),
           ],
