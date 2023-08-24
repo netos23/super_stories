@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
-import 'package:dismissible_page/dismissible_page.dart';
-import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:flutter/foundation.dart';
@@ -36,10 +34,9 @@ class DemoHomePage extends StatefulWidget {
 
 class _DemoHomePageState extends State<DemoHomePage> {
   final _images = [
-    'https://storage.yandexcloud.net/ash/Group_490.webp',
-    'https://storage.yandexcloud.net/ash/Group_491.webp',
-    'https://storage.yandexcloud.net/ash/Group_493.webp',
-    'https://storage.yandexcloud.net/ash/Group_492.webp',
+    'https://avatars.mds.yandex.net/i?id=61168193e07d837b8d054ddc8b8107cdc64d1b71-8081694-images-thumbs&n=13',
+    'https://avatars.mds.yandex.net/i?id=74b03bfc2b89afe3fcabcf9c47b0b9200ba967d2-8294270-images-thumbs&n=13',
+    'https://avatars.mds.yandex.net/i?id=ed6f20c5dc4f162011bb06676bb0905b4154ec83-8448606-images-thumbs&n=13',
   ];
 
   Future<Uint8List> _loadImage(String url) async {
@@ -55,7 +52,7 @@ class _DemoHomePageState extends State<DemoHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: FutureBuilder(
+      body: FutureBuilder<List<Uint8List>>(
         future: _loadImages(),
         builder: (context, snapshot) {
           final data = snapshot.data;
@@ -77,26 +74,17 @@ class _DemoHomePageState extends State<DemoHomePage> {
                       Navigator.push(
                         context,
                         PageRouteBuilder(
+                          opaque: false,
                           transitionDuration: const Duration(
-                            milliseconds: 500,
+                            milliseconds: 300,
                           ),
                           reverseTransitionDuration: const Duration(
-                            milliseconds: 500,
+                            milliseconds: 150,
                           ),
-                          pageBuilder: (context, a1, a2) => DismissiblePage(
-                            // backgroundColor: Colors.transparent,
-                            onDragUpdate: (value) {},
-                            onDragEnd: () {},
-                            minRadius: 0,
-                            minScale: .5,
-                            direction: DismissiblePageDismissDirection.down,
-                            onDismissed: () {
-                              Navigator.of(context).pop();
-                            },
-                            child: TestApp(
-                              contentBytes: data,
-                              initialPage: index,
-                            ),
+                          barrierColor: Colors.white.withOpacity(0.05),
+                          pageBuilder: (context, a1, a2) => TestApp(
+                            contentBytes: data,
+                            initialPage: index,
                           ),
                         ),
                       );
@@ -159,7 +147,7 @@ class _TestAppState extends State<TestApp> {
       },
       onStateRestore: (group) {
         // debugPrint('restore $group');
-        return 0;
+        return widget.initialPage;
       },
       contentBuilder: (
         context,
@@ -356,7 +344,7 @@ class _StoriesWidgetState extends State<StoriesWidget> {
           controller: _pageController,
           itemCount: widget.groupsCount,
           itemBuilder: (context, index) {
-            return ValueListenableBuilder(
+            return ValueListenableBuilder<double>(
               valueListenable: _currentPageValueNotifier,
               builder: (context, currentPageValue, _) {
                 final isLeaving = (index - currentPageValue) <= 0;
@@ -546,7 +534,7 @@ class _StoryFrameState extends State<StoryFrame>
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder(
+    return ValueListenableBuilder<int>(
       valueListenable: _activeIndexNotifier,
       builder: (context, frameIndex, _) {
         return Stack(
@@ -724,7 +712,7 @@ class AnimatedStoryIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder(
+    return ValueListenableBuilder<double>(
       valueListenable: frameProgress,
       builder: (context, value, _) {
         return StoryIndicator(value: value);
